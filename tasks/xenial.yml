@@ -1,0 +1,40 @@
+---
+- name: install td-agent agent
+  shell: 'curl -L https://toolbelt.treasuredata.com/sh/install-ubuntu-xenial-td-agent3.sh | bash -'
+  args:
+    warn: no
+
+- name: lay down td-agent config
+  template:
+    src: td-agent.conf.j2
+    dest: /etc/td-agent/td-agent.conf
+
+- name: make sure td-agent user can read files in /var/log
+  file:
+    path: /var/log
+    group: td-agent
+    mode: '0775'
+    recurse: yes
+
+- name: update rsyslog to send syslogs to socket for fluentd
+  lineinfile:
+    path: /etc/rsyslog.conf
+    line: '*.* 127.0.0.1:5140'
+    insertafter: EOF
+
+- name: restart rsyslog to load new config
+  service:
+    name: rsyslog
+    state: restarted
+
+# For reasons, the td-agent has to be started then restarted for it to properly send data to S3, when running on a server for the first time.
+- name: start td-agent
+  service:
+    name: td-agent
+    state: started
+
+- name: restart td-agent, again
+  service:
+    name: td-agent
+    state: restarted
+    enabled: yes
